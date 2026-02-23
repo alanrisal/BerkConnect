@@ -5,10 +5,10 @@ import pool from '@/lib/db'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const userId    = searchParams.get('userId')
+    const userId = searchParams.get('userId')
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
-    const limit      = parseInt(searchParams.get('limit') || '50')
-    const offset     = parseInt(searchParams.get('offset') || '0')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     if (!userId) {
       return NextResponse.json(
@@ -17,56 +17,53 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch user preferences first — the result determines the WHERE clause
-    // used in the two queries that follow.
+    // Get user's notification preferences
     const prefsResult = await pool.query(
       'SELECT filter_mode FROM notification_preferences WHERE user_id = $1',
       [userId]
     )
     const filterMode = prefsResult.rows[0]?.filter_mode || 'all'
 
-    // Replace the old correlated IN-subquery with EXISTS which is evaluated
-    // once per row rather than re-running a subquery each time.
-    // Also keep club_id IS NULL to preserve system notifications.
-    const myClubsFilter = filterMode === 'my_clubs'
-      ? `AND (n.club_id IS NULL OR EXISTS (
-           SELECT 1 FROM club_members
-           WHERE club_id = n.club_id AND user_id = $1
-         ))`
-      : ''
-
-    const unreadFilter = unreadOnly ? 'AND n.is_read = FALSE' : ''
-
-    const notificationsQuery = `
-      SELECT n.*, c.name AS club_name, c.image_url AS club_image
+    let query = `
+      SELECT
+        n.*,
+        c.name as club_name,
+        c.image_url as club_image
       FROM notifications n
       LEFT JOIN clubs c ON n.club_id = c.id
       WHERE n.user_id = $1
-        ${myClubsFilter}
-        ${unreadFilter}
-      ORDER BY n.created_at DESC
-      LIMIT $2 OFFSET $3
     `
+    const params: any[] = [userId]
 
-    const countQuery = `
-      SELECT COUNT(*)::int AS count
-      FROM notifications n
-      WHERE n.user_id = $1
-        AND n.is_read = FALSE
-        ${myClubsFilter}
-    `
+    // Apply filter based on user preferences
+    if (filterMode === 'my_clubs') {
+      query += `
+        AND (n.club_id IS NULL OR n.club_id IN (
+          SELECT club_id FROM club_members WHERE user_id = $1
+        ))
+      `
+    }
 
-    // Main query and unread count run in parallel — both use the same
-    // resolved filterMode so no ordering dependency.
-    const [result, countResult] = await Promise.all([
-      pool.query(notificationsQuery, [userId, limit, offset]),
-      pool.query(countQuery, [userId]),
-    ])
+    if (unreadOnly) {
+      query += ` AND n.is_read = FALSE`
+    }
+
+    query += ` ORDER BY n.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(limit, offset)
+
+    const result = await pool.query(query, params)
+
+    // Get unread count
+    let countQuery = `SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = FALSE`
+    if (filterMode === 'my_clubs') {
+      countQuery += ` AND (club_id IS NULL OR club_id IN (SELECT club_id FROM club_members WHERE user_id = $1))`
+    }
+    const countResult = await pool.query(countQuery, [userId])
 
     return NextResponse.json({
       success: true,
       data: result.rows,
-      unreadCount: countResult.rows[0].count,
+      unreadCount: parseInt(countResult.rows[0].count),
       filterMode,
     })
   } catch (error) {

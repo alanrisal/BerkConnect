@@ -15,49 +15,64 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Run all queries in parallel.
-    // The three club_members COUNTs are collapsed into one query using
-    // conditional aggregation so we make a single round trip instead of three.
-    const [memberStats, sponsorResult, postsResult, likesResult, roles] = await Promise.all([
-      pool.query(
-        `SELECT
-          COUNT(*)::int                                                      AS clubs_joined,
-          COUNT(*) FILTER (WHERE role = 'president')::int                   AS clubs_president_of,
-          COUNT(*) FILTER (WHERE role IN ('officer', 'vice_president'))::int AS clubs_officer_of
-         FROM club_members
-         WHERE user_id = $1`,
-        [userId]
-      ),
-      pool.query(
-        `SELECT COUNT(*)::int AS count FROM club_sponsors WHERE user_id = $1 AND status = 'active'`,
-        [userId]
-      ),
-      pool.query(
-        `SELECT COUNT(*)::int AS count FROM posts WHERE user_id = $1`,
-        [userId]
-      ),
-      pool.query(
-        `SELECT COUNT(*)::int AS count FROM post_likes WHERE user_id = $1`,
-        [userId]
-      ),
-      getUserRoles(userId),
-    ])
+    // Get user roles
+    const roles = await getUserRoles(userId)
 
-    const stats = memberStats.rows[0]
+    // Get clubs joined count
+    const clubsJoinedResult = await pool.query(
+      `SELECT COUNT(*) as count FROM club_members WHERE user_id = $1`,
+      [userId]
+    )
+    const clubsJoined = parseInt(clubsJoinedResult.rows[0]?.count || "0")
+
+    // Get clubs where user is president
+    const clubsPresidentResult = await pool.query(
+      `SELECT COUNT(*) as count FROM club_members WHERE user_id = $1 AND role = 'president'`,
+      [userId]
+    )
+    const clubsPresidentOf = parseInt(clubsPresidentResult.rows[0]?.count || "0")
+
+    // Get clubs where user is officer
+    const clubsOfficerResult = await pool.query(
+      `SELECT COUNT(*) as count FROM club_members WHERE user_id = $1 AND role IN ('officer', 'vice_president')`,
+      [userId]
+    )
+    const clubsOfficerOf = parseInt(clubsOfficerResult.rows[0]?.count || "0")
+
+    // Get clubs sponsoring (if sponsor)
+    const clubsSponsoringResult = await pool.query(
+      `SELECT COUNT(*) as count FROM club_sponsors WHERE user_id = $1 AND status = 'active'`,
+      [userId]
+    )
+    const clubsSponsoring = parseInt(clubsSponsoringResult.rows[0]?.count || "0")
+
+    // Get posts created
+    const postsCreatedResult = await pool.query(
+      `SELECT COUNT(*) as count FROM posts WHERE user_id = $1`,
+      [userId]
+    )
+    const postsCreated = parseInt(postsCreatedResult.rows[0]?.count || "0")
+
+    // Get posts liked
+    const postsLikedResult = await pool.query(
+      `SELECT COUNT(*) as count FROM post_likes WHERE user_id = $1`,
+      [userId]
+    )
+    const postsLiked = parseInt(postsLikedResult.rows[0]?.count || "0")
 
     return NextResponse.json({
       success: true,
       data: {
-        clubsJoined:      stats.clubs_joined,
-        clubsPresidentOf: stats.clubs_president_of,
-        clubsOfficerOf:   stats.clubs_officer_of,
-        clubsSponsoring:  sponsorResult.rows[0].count,
-        postsCreated:     postsResult.rows[0].count,
-        postsLiked:       likesResult.rows[0].count,
-        isCoordinator:    roles.isCoordinator,
-        isSponsor:        roles.isSponsor,
-        isPresident:      roles.isPresident,
-        isOfficer:        roles.isOfficer,
+        clubsJoined,
+        clubsPresidentOf,
+        clubsOfficerOf,
+        clubsSponsoring,
+        postsCreated,
+        postsLiked,
+        isCoordinator: roles.isCoordinator,
+        isSponsor: roles.isSponsor,
+        isPresident: roles.isPresident,
+        isOfficer: roles.isOfficer,
       },
     })
   } catch (error) {

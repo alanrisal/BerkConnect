@@ -26,21 +26,16 @@ ON posts(club_id, created_at DESC);
 -- ============================================
 
 -- Index for checking club membership
-CREATE INDEX IF NOT EXISTS idx_club_members_club_user
+CREATE INDEX IF NOT EXISTS idx_club_members_club_user 
 ON club_members(club_id, user_id);
 
 -- Index for finding user's clubs
-CREATE INDEX IF NOT EXISTS idx_club_members_user_id
+CREATE INDEX IF NOT EXISTS idx_club_members_user_id 
 ON club_members(user_id);
 
--- Index for finding club leaders by club
-CREATE INDEX IF NOT EXISTS idx_club_members_role
+-- Index for finding club leaders
+CREATE INDEX IF NOT EXISTS idx_club_members_role 
 ON club_members(club_id, role);
-
--- Compound index for user + role lookups (used heavily in getUserRoles,
--- /api/users/stats, and anywhere we check president / officer status by user).
-CREATE INDEX IF NOT EXISTS idx_club_members_user_role
-ON club_members(user_id, role);
 
 -- ============================================
 -- CLUBS INDEXES
@@ -83,34 +78,6 @@ CREATE INDEX IF NOT EXISTS idx_users_role
 ON users(role);
 
 -- ============================================
--- NOTIFICATIONS INDEXES
--- ============================================
-
--- Existing single-column indexes (may already exist from clubs-schema.sql)
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id
-ON notifications(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at
-ON notifications(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_notifications_is_read
-ON notifications(is_read);
-
--- Compound covering index for the most common notification query pattern:
---   WHERE user_id = ? AND is_read = FALSE ORDER BY created_at DESC
--- The planner can satisfy this entirely from the index without a heap fetch.
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread_created
-ON notifications(user_id, is_read, created_at DESC);
-
--- ============================================
--- CLUB SPONSORS INDEXES
--- ============================================
-
--- Compound index for the user + status pattern used in getUserRoles and stats
-CREATE INDEX IF NOT EXISTS idx_club_sponsors_user_status
-ON club_sponsors(user_id, status);
-
--- ============================================
 -- ANALYZE TABLES
 -- ============================================
 
@@ -120,8 +87,6 @@ ANALYZE club_members;
 ANALYZE clubs;
 ANALYZE club_tags;
 ANALYZE users;
-ANALYZE notifications;
-ANALYZE club_sponsors;
 
 -- ============================================
 -- VERIFY INDEXES
@@ -133,5 +98,5 @@ SELECT
     indexname,
     indexdef
 FROM pg_indexes
-WHERE tablename IN ('posts', 'club_members', 'clubs', 'club_tags', 'users', 'notifications', 'club_sponsors')
+WHERE tablename IN ('posts', 'club_members', 'clubs', 'club_tags', 'users')
 ORDER BY tablename, indexname;

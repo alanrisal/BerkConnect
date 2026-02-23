@@ -49,13 +49,12 @@ export async function GET(request: NextRequest) {
       LIMIT $1 OFFSET $2
     `
 
-    // Run posts + count in parallel — two independent queries, no reason to
-    // wait for one before issuing the other.
-    const [postsResult, countResult] = await Promise.all([
-      pool.query(postsQuery, [limit, offset]),
-      pool.query('SELECT COUNT(*)::int AS total FROM posts'),
-    ])
-    const totalPosts = countResult.rows[0].total
+    const postsResult = await pool.query(postsQuery, [limit, offset])
+
+    // Get total count for pagination metadata
+    const countQuery = 'SELECT COUNT(*) as total FROM posts'
+    const countResult = await pool.query(countQuery)
+    const totalPosts = parseInt(countResult.rows[0].total)
     const totalPages = Math.ceil(totalPosts / limit)
 
     // Check which posts user has liked

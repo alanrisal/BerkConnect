@@ -1,92 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pool from '@/lib/db'
 
-// GET /api/clubs - Get clubs with optional filtering and pagination
+// GET /api/clubs - Get all clubs with optional filtering
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const category  = searchParams.get('category')
+    const category = searchParams.get('category')
     const isClaimed = searchParams.get('isClaimed')
-    const userId    = searchParams.get('userId')
-    const page      = Math.max(1, parseInt(searchParams.get('page')  || '1'))
-    const limit     = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '100')))
-    const offset    = (page - 1) * limit
+    const userId = searchParams.get('userId') // For filtering user's clubs
+
+    let query = `
+      SELECT 
+        c.*,
+        u.name as president_name,
+        u.avatar_url as president_avatar,
+        u.email as president_email,
+        COUNT(DISTINCT cm.id) as member_count,
+        COALESCE(
+          (SELECT json_agg(tag) FROM club_tags WHERE club_id = c.id),
+          '[]'::json
+        ) as tags
+      FROM clubs c
+      LEFT JOIN users u ON c.president_id = u.id
+      LEFT JOIN club_members cm ON c.id = cm.club_id
+    `
 
     const conditions: string[] = []
     const params: any[] = []
     let paramCount = 1
 
     if (category && category !== 'all') {
-      conditions.push(`c.category = $${paramCount++}`)
+      conditions.push(`c.category = $${paramCount}`)
       params.push(category)
+      paramCount++
     }
 
     if (isClaimed !== null) {
-      conditions.push(`c.is_claimed = $${paramCount++}`)
+      conditions.push(`c.is_claimed = $${paramCount}`)
       params.push(isClaimed === 'true')
+      paramCount++
     }
 
-    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ')
+    }
 
-    // LATERAL join for tags: computed once per club in a single scan of
-    // club_tags rather than as a correlated subquery executed per row.
-    const clubQuery = `
-      SELECT
-        c.id, c.name, c.description, c.category, c.image_url,
-        c.meeting_time, c.location, c.is_claimed, c.president_id,
-        c.created_at, c.updated_at,
-        u.name       AS president_name,
-        u.avatar_url AS president_avatar,
-        u.email      AS president_email,
-        COUNT(DISTINCT cm.id)::int AS member_count,
-        COALESCE(t.tags, '[]'::json) AS tags
-      FROM clubs c
-      LEFT JOIN users u ON c.president_id = u.id
-      LEFT JOIN club_members cm ON c.id = cm.club_id
-      LEFT JOIN LATERAL (
-        SELECT json_agg(tag ORDER BY tag) AS tags
-        FROM club_tags
-        WHERE club_id = c.id
-      ) t ON TRUE
-      ${whereClause}
-      GROUP BY c.id, u.id, t.tags
-      ORDER BY c.created_at DESC
-      LIMIT $${paramCount} OFFSET $${paramCount + 1}
-    `
-    params.push(limit, offset)
+    query += ' GROUP BY c.id, u.id ORDER BY c.created_at DESC'
 
+    const result = await pool.query(query, params)
+
+    // If userId is provided, also check membership and sponsor status
+    // Skip for demo user (not a valid UUID)
     if (userId && userId !== 'demo-user-123') {
-      // Run the clubs query and both membership lookups in parallel.
-      const [clubsResult, memberships, sponsorships] = await Promise.all([
-        pool.query(clubQuery, params),
-        pool.query(
-          `SELECT club_id, role FROM club_members WHERE user_id = $1`,
-          [userId]
-        ),
-        pool.query(
-          `SELECT club_id FROM club_sponsors WHERE user_id = $1 AND status = 'active'`,
-          [userId]
-        ),
-      ])
+      // Check club memberships
+      const membershipsQuery = `
+        SELECT club_id, role FROM club_members WHERE user_id = $1
+      `
+      const memberships = await pool.query(membershipsQuery, [userId])
+      const membershipMap = new Map(
+        memberships.rows.map((m: any) => [m.club_id, m.role])
+      )
 
-      const membershipMap  = new Map(memberships.rows.map((m: any) => [m.club_id, m.role]))
-      const sponsorshipSet = new Set(sponsorships.rows.map((s: any) => s.club_id))
+      // Check club sponsorships
+      const sponsorshipsQuery = `
+        SELECT club_id FROM club_sponsors WHERE user_id = $1 AND status = 'active'
+      `
+      const sponsorships = await pool.query(sponsorshipsQuery, [userId])
+      const sponsorshipSet = new Set(
+        sponsorships.rows.map((s: any) => s.club_id)
+      )
 
-      const clubs = clubsResult.rows.map((club: any) => {
+      const clubs = result.rows.map((club: any) => {
         const isSponsor = sponsorshipSet.has(club.id)
-        const isMember  = membershipMap.has(club.id)
+        const isMember = membershipMap.has(club.id)
+        
         return {
           ...club,
-          is_joined:  isMember || isSponsor,
-          memberRole: isSponsor ? 'sponsor' : (membershipMap.get(club.id) ?? null),
+          is_joined: isMember || isSponsor, // Sponsors are considered "joined"
+          memberRole: isSponsor ? 'sponsor' : (membershipMap.get(club.id) || null),
         }
       })
 
-      return NextResponse.json({ success: true, data: clubs, count: clubs.length, page, limit })
+      return NextResponse.json({
+        success: true,
+        data: clubs,
+        count: clubs.length,
+      })
     }
 
-    const result = await pool.query(clubQuery, params)
-    return NextResponse.json({ success: true, data: result.rows, count: result.rows.length, page, limit })
+    return NextResponse.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length,
+    })
   } catch (error) {
     console.error('Error fetching clubs:', error)
     return NextResponse.json(
@@ -101,6 +107,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
+    // Validate required fields
     if (!body.name || !body.description || !body.category) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields: name, description, category' },
@@ -108,6 +115,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate category
     const validCategories = ['academic', 'arts', 'sports', 'technology', 'service', 'hobby']
     if (!validCategories.includes(body.category)) {
       return NextResponse.json(
@@ -116,7 +124,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const existing = await pool.query('SELECT id FROM clubs WHERE name = $1', [body.name])
+    // Check if club name already exists
+    const checkQuery = 'SELECT id FROM clubs WHERE name = $1'
+    const existing = await pool.query(checkQuery, [body.name])
     if (existing.rows.length > 0) {
       return NextResponse.json(
         { success: false, error: 'Club with this name already exists' },
@@ -124,6 +134,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Create club
     const insertQuery = `
       INSERT INTO clubs (name, description, category, image_url, meeting_time, location, is_claimed)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -133,25 +144,26 @@ export async function POST(request: NextRequest) {
       body.name,
       body.description,
       body.category,
-      body.imageUrl    || null,
+      body.imageUrl || null,
       body.meetingTime || null,
-      body.location    || null,
-      false,
+      body.location || null,
+      false, // New clubs start unclaimed
     ])
 
     const club = result.rows[0]
 
+    // Add tags if provided
     if (body.tags && Array.isArray(body.tags) && body.tags.length > 0) {
-      const tagInserts = body.tags.map((tag: string) =>
-        pool.query(
-          'INSERT INTO club_tags (club_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [club.id, tag]
-        )
+      const tagInserts = body.tags.map((tag: string) => 
+        pool.query('INSERT INTO club_tags (club_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING', [club.id, tag])
       )
       await Promise.all(tagInserts)
     }
 
-    return NextResponse.json({ success: true, data: club }, { status: 201 })
+    return NextResponse.json({
+      success: true,
+      data: club,
+    }, { status: 201 })
   } catch (error) {
     console.error('Error creating club:', error)
     return NextResponse.json(
@@ -160,3 +172,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

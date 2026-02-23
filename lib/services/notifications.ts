@@ -37,52 +37,55 @@ export async function createNotificationsForClubMembers(
   excludeUserId?: string
 ) {
   try {
-    // Single JOIN query: get all members whose push notifications are enabled.
-    // COALESCE to TRUE because no row in notification_preferences means default-enabled.
-    const params: any[] = [clubId]
+    // Get all club members except the poster
     let memberQuery = `
-      SELECT cm.user_id
-      FROM club_members cm
-      LEFT JOIN notification_preferences np ON np.user_id = cm.user_id
-      WHERE cm.club_id = $1
-        AND COALESCE(np.push_enabled, TRUE) = TRUE
+      SELECT user_id FROM club_members WHERE club_id = $1
     `
+    const params: any[] = [clubId]
+
     if (excludeUserId) {
-      memberQuery += ` AND cm.user_id != $2`
+      memberQuery += ` AND user_id != $2`
       params.push(excludeUserId)
     }
 
     const membersResult = await pool.query(memberQuery, params)
-    if (membersResult.rows.length === 0) return []
 
-    const userIds: string[] = membersResult.rows.map((r: any) => r.user_id)
+    // Create notifications for all members
+    const notifications = []
+    for (const member of membersResult.rows) {
+      // Check if user has push enabled and filter allows this notification
+      const prefsResult = await pool.query(
+        'SELECT push_enabled, filter_mode FROM notification_preferences WHERE user_id = $1',
+        [member.user_id]
+      )
 
-    // Batch INSERT all notifications in one query using unnest.
-    // This replaces the N individual INSERT calls in the old loop.
-    const batchResult = await pool.query(
-      `INSERT INTO notifications (user_id, club_id, post_id, type, title, body)
-       SELECT unnest($1::uuid[]), $2, $3, $4, $5, $6
-       RETURNING *`,
-      [userIds, clubId, postId, type, title, body]
-    )
-
-    const notifications = batchResult.rows
-
-    // Fire push notifications non-blocking — intentionally not awaited.
-    const pushPayload: PushPayload = {
-      title,
-      body,
-      url: `/clubs/${clubId}`,
-      clubId,
-      postId,
-      tag: `club-${clubId}-post`,
-      notificationId: '',
-    }
-    for (const notification of notifications) {
-      sendPushToUser(notification.user_id, { ...pushPayload, notificationId: notification.id })
-        .catch((err) => {
-          console.error('Push notification failed for user:', notification.user_id, err)
+      const prefs = prefsResult.rows[0]
+      // Default to enabled if no preferences set
+      if (!prefs || prefs.push_enabled !== false) {
+        const notification = await createNotification({
+          userId: member.user_id,
+          clubId,
+          postId,
+          type,
+          title,
+          body,
         })
+        notifications.push(notification)
+
+        // Send push notification to user's devices (non-blocking)
+        const pushPayload: PushPayload = {
+          title,
+          body,
+          url: `/clubs/${clubId}`,
+          clubId,
+          postId,
+          notificationId: notification.id,
+          tag: `club-${clubId}-post`,
+        }
+        sendPushToUser(member.user_id, pushPayload).catch((err) => {
+          console.error('Push notification failed for user:', member.user_id, err)
+        })
+      }
     }
 
     return notifications
@@ -100,7 +103,14 @@ export async function createNotificationsForAllFollowingClub(
   body: string,
   excludeUserId?: string
 ) {
+  // This creates notifications based on user filter preferences
+  // Users with 'all' filter will get notifications for all clubs
+  // Users with 'my_clubs' filter will only get notifications for clubs they're members of
+
   try {
+    // For 'my_clubs' filter users, only members get notifications
+    // For 'all' filter users, they can opt-in to all club posts (future feature)
+    // For now, we only notify members of the club
     return createNotificationsForClubMembers(clubId, postId, type, title, body, excludeUserId)
   } catch (error) {
     console.error('Error creating notifications:', error)

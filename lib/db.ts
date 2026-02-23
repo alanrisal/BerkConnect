@@ -1,18 +1,12 @@
 import { Pool } from 'pg'
 
-// Database connection pool.
-//
-// In production (Vercel serverless) each Lambda instance gets its own pool.
-// Many instances run concurrently, so a large max here multiplies across all
-// instances and exhausts Postgres / Supabase connection limits quickly.
-// Keep max small (2-5) and rely on Supabase PgBouncer (transaction mode,
-// port 6543) to multiplex at the infrastructure level.
+// Database connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: process.env.NODE_ENV === 'production' ? 3 : 20,
-  idleTimeoutMillis: 10000,        // Release idle clients faster in serverless
-  connectionTimeoutMillis: 5000,   // Give a little more time under high concurrency
+  max: 20, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
 })
 
 // Test database connection
@@ -31,8 +25,12 @@ export async function testConnection() {
 
 // Query helper function
 export async function query(text: string, params?: any[]) {
+  const start = Date.now()
   try {
-    return await pool.query(text, params)
+    const result = await pool.query(text, params)
+    const duration = Date.now() - start
+    console.log('Executed query', { text, duration, rows: result.rowCount })
+    return result
   } catch (error) {
     console.error('Query error:', error)
     throw error
