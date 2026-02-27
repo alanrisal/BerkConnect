@@ -30,6 +30,7 @@ import { EditClubDialog } from "./edit-club-dialog"
 import { ManageTagsDialog } from "./manage-tags-dialog"
 import { TransferPresidencyDialog } from "./transfer-presidency-dialog"
 import { CreatePostDialog } from "./create-post-dialog"
+import { renderTextWithLinks } from "@/lib/render-text-with-links"
 
 interface ClubMember {
   id: string
@@ -83,28 +84,6 @@ interface Club {
   sponsors: Sponsor[]
   tags: string[]
   memberRole: string | null
-}
-
-function renderTextWithLinks(text: string) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g
-  const parts = text.split(urlRegex)
-  return parts.map((part, i) => {
-    if (/^https?:\/\//.test(part)) {
-      return (
-        <a
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-500 hover:underline break-all"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
-      )
-    }
-    return part
-  })
 }
 
 const categoryIcons = {

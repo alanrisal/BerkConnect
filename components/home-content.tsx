@@ -7,6 +7,7 @@ import { Heart, Users, Loader2, Newspaper } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
+import { renderTextWithLinks } from "@/lib/render-text-with-links"
 
 interface ClubPost {
   id: string
@@ -230,7 +231,7 @@ export function HomeContent() {
                 </CardHeader>
 
                 <CardContent className="pt-0 space-y-4">
-                  <p className="text-sm sm:text-base text-card-foreground leading-relaxed">{post.content}</p>
+                  <p className="text-sm sm:text-base text-card-foreground leading-relaxed whitespace-pre-wrap">{renderTextWithLinks(post.content)}</p>
 
                   {post.image_url && (
                     <div className="border-2 border-foreground shadow-brutal overflow-hidden -mx-4 sm:mx-0">
