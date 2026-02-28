@@ -33,7 +33,7 @@ export function Navigation({ activeSection, onSectionChange, user, onLogout }: N
   const [notificationCount, setNotificationCount] = useState(0)
 
   const fetchNotificationCount = useCallback(async () => {
-    if (!user?.id) return
+    if (!user?.id || document.hidden) return
     try {
       const response = await fetch(`/api/notifications/count?userId=${user.id}`)
       if (response.ok) {
@@ -47,9 +47,19 @@ export function Navigation({ activeSection, onSectionChange, user, onLogout }: N
 
   useEffect(() => {
     fetchNotificationCount()
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotificationCount, 30000)
-    return () => clearInterval(interval)
+    // Poll every 3 minutes — reduces Vercel function invocations significantly
+    const interval = setInterval(fetchNotificationCount, 3 * 60 * 1000)
+
+    // Pause polling while tab is hidden; fetch immediately when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchNotificationCount()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [fetchNotificationCount])
 
   const handleOpenSettings = () => {

@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       query += ' WHERE ' + conditions.join(' AND ')
     }
 
-    query += ' GROUP BY c.id, u.id ORDER BY c.created_at DESC'
+    query += ' GROUP BY c.id, u.id ORDER BY c.name ASC'
 
     const result = await pool.query(query, params)
 
@@ -73,10 +73,11 @@ export async function GET(request: NextRequest) {
       const clubs = result.rows.map((club: any) => {
         const isSponsor = sponsorshipSet.has(club.id)
         const isMember = membershipMap.has(club.id)
-        
+
         return {
           ...club,
           is_joined: isMember || isSponsor, // Sponsors are considered "joined"
+          is_sponsor: isSponsor,
           memberRole: isSponsor ? 'sponsor' : (membershipMap.get(club.id) || null),
         }
       })

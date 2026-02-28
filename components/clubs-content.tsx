@@ -51,6 +51,7 @@ interface Club {
   location: string | null
   image_url: string | null
   is_joined?: boolean
+  is_sponsor?: boolean
   is_claimed: boolean
   president_name?: string | null
   president_avatar?: string | null
@@ -174,16 +175,18 @@ export function ClubsContent() {
   }, [selectedClub, transferUserId, user?.id, loadClubs])
 
   const filteredClubs = useMemo(() => {
-    return clubs.filter((club) => {
-      const matchesSearch =
-        club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        club.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        club.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+    return clubs
+      .filter((club) => {
+        const matchesSearch =
+          club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          club.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          club.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
 
-      const matchesCategory = selectedCategory === "all" || club.category === selectedCategory
+        const matchesCategory = selectedCategory === "all" || club.category === selectedCategory
 
-      return matchesSearch && matchesCategory
-    })
+        return matchesSearch && matchesCategory
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [clubs, searchTerm, selectedCategory])
 
   const joinedClubs = useMemo(() => filteredClubs.filter((club) => club.is_joined), [filteredClubs])
@@ -329,11 +332,10 @@ export function ClubsContent() {
           )}
 
           <div className="flex flex-col gap-2 pt-2 border-t-2 border-foreground/20">
-            {/* Sponsor Claim Button — only mount for verified teachers who
-                aren't already sponsoring this club. isTeacher is fetched once
-                at the parent level; isAlreadySponsor comes from the clubs API
-                response (memberRole field), so zero extra requests are needed. */}
-            {user?.id && isTeacher && club.memberRole !== 'sponsor' && (
+            {/* Sponsor Claim Button — shown for verified teachers who haven't
+                already sponsored this specific club. Multiple teachers can
+                sponsor the same club; is_sponsor is per-user from /api/clubs. */}
+            {user?.id && isTeacher && !club.is_sponsor && (
               <ClaimSponsorDialog
                 clubId={club.id}
                 clubName={club.name}
@@ -341,7 +343,7 @@ export function ClubsContent() {
                 userName={user.name || "User"}
                 userEmail={user.email}
                 isVerifiedTeacher={isTeacher}
-                isAlreadySponsor={club.memberRole === 'sponsor'}
+                isAlreadySponsor={!!club.is_sponsor}
                 onClaimSuccess={handleClaimSuccess}
               />
             )}
@@ -526,7 +528,7 @@ export function ClubsContent() {
                 placeholder="Search clubs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 text-base"
               />
             </div>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
