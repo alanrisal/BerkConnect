@@ -116,13 +116,13 @@ export async function POST(
       )
     }
 
-    // Verify user is a member of the club
-    const memberCheck = await pool.query(
-      'SELECT id FROM club_members WHERE club_id = $1 AND user_id = $2',
-      [clubId, userId]
-    )
+    // Verify user is a member OR sponsor of the club
+    const [memberCheck, sponsorCheck] = await Promise.all([
+      pool.query('SELECT id FROM club_members WHERE club_id = $1 AND user_id = $2', [clubId, userId]),
+      pool.query("SELECT id FROM club_sponsors WHERE club_id = $1 AND user_id = $2 AND status = 'active'", [clubId, userId]),
+    ])
 
-    if (memberCheck.rows.length === 0) {
+    if (memberCheck.rows.length === 0 && sponsorCheck.rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Only club members can post' },
         { status: 403 }

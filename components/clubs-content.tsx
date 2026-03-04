@@ -146,6 +146,28 @@ export function ClubsContent() {
     loadClubs()
   }, [loadClubs])
 
+  const handleLeaveSponsor = useCallback(async (clubId: string) => {
+    if (!user?.id) return
+    if (!confirm("Are you sure you want to leave your sponsorship of this club?")) return
+
+    try {
+      const response = await fetch(`/api/clubs/${clubId}/leave-sponsor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      })
+      if (response.ok) {
+        await loadClubs()
+      } else {
+        const data = await response.json()
+        alert(data.error || "Failed to leave sponsorship")
+      }
+    } catch (error) {
+      console.error("Error leaving sponsorship:", error)
+      alert("Failed to leave sponsorship. Please try again.")
+    }
+  }, [user?.id, loadClubs])
+
   const handleTransferPresidency = useCallback(async () => {
     if (!selectedClub || !transferUserId || !user?.id) return
 
@@ -348,6 +370,20 @@ export function ClubsContent() {
               />
             )}
 
+            {/* Leave Sponsorship button for active sponsors */}
+            {user?.id && isTeacher && club.is_sponsor && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLeaveSponsor(club.id)
+                }}
+              >
+                Leave Sponsorship
+              </Button>
+            )}
+
             {!club.is_claimed ? (
               user?.id ? (
                 <ClaimClubDialog
@@ -371,7 +407,7 @@ export function ClubsContent() {
               )
             ) : (
               <>
-                {club.is_joined && user?.id && (
+                {user?.id && (club.is_joined || club.is_sponsor) && (
                   <div className="flex gap-2">
                     <CreatePostDialog
                       clubId={club.id}
@@ -380,67 +416,71 @@ export function ClubsContent() {
                       onPostCreated={loadClubs}
                     />
 
+                    {(club.memberRole === "president" || club.is_sponsor) && (
+                      <ManageLeadershipDialog
+                        clubId={club.id}
+                        clubName={club.name}
+                        currentUserId={user?.id || ""}
+                        isPresident={club.memberRole === "president"}
+                        isSponsor={!!club.is_sponsor}
+                      />
+                    )}
+
                     {club.memberRole === "president" && (
-                      <>
-                        <ManageLeadershipDialog
-                          clubId={club.id}
-                          clubName={club.name}
-                          currentUserId={user?.id || ""}
-                          isPresident={true}
-                        />
-                        <Dialog
-                          open={isTransferDialogOpen && selectedClub?.id === club.id}
-                          onOpenChange={(open) => {
-                            setIsTransferDialogOpen(open)
-                            if (open) setSelectedClub(club)
-                            else {
-                              setSelectedClub(null)
-                              setTransferUserId("")
-                            }
-                          }}
-                        >
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="icon" title="Transfer Presidency">
-                              <Crown className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="border-2 border-foreground shadow-brutal">
-                            <DialogHeader>
-                              <DialogTitle className="uppercase font-bold">Transfer Presidency</DialogTitle>
-                              <DialogDescription>
-                                Transfer club presidency to another member by their user ID
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="transfer-user-id" className="font-bold uppercase text-xs">User ID</Label>
-                                <Input
-                                  id="transfer-user-id"
-                                  placeholder="Enter user ID to transfer to"
-                                  value={transferUserId}
-                                  onChange={(e) => setTransferUserId(e.target.value)}
-                                />
-                              </div>
-                              <Button onClick={handleTransferPresidency} className="w-full" disabled={!transferUserId}>
-                                Transfer
-                              </Button>
+                      <Dialog
+                        open={isTransferDialogOpen && selectedClub?.id === club.id}
+                        onOpenChange={(open) => {
+                          setIsTransferDialogOpen(open)
+                          if (open) setSelectedClub(club)
+                          else {
+                            setSelectedClub(null)
+                            setTransferUserId("")
+                          }
+                        }}
+                      >
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="icon" title="Transfer Presidency">
+                            <Crown className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="border-2 border-foreground shadow-brutal">
+                          <DialogHeader>
+                            <DialogTitle className="uppercase font-bold">Transfer Presidency</DialogTitle>
+                            <DialogDescription>
+                              Transfer club presidency to another member by their user ID
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="transfer-user-id" className="font-bold uppercase text-xs">User ID</Label>
+                              <Input
+                                id="transfer-user-id"
+                                placeholder="Enter user ID to transfer to"
+                                value={transferUserId}
+                                onChange={(e) => setTransferUserId(e.target.value)}
+                              />
                             </div>
-                          </DialogContent>
-                        </Dialog>
-                      </>
+                            <Button onClick={handleTransferPresidency} className="w-full" disabled={!transferUserId}>
+                              Transfer
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     )}
                   </div>
                 )}
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleJoinLeave(club.id, club.is_joined || false)
-                  }}
-                  variant={club.is_joined ? "secondary" : "default"}
-                  className={club.is_joined ? "flex-1" : "flex-1"}
-                >
-                  {club.is_joined ? "Joined" : "Join Club"}
-                </Button>
+                {!club.is_sponsor && (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleJoinLeave(club.id, club.is_joined || false)
+                    }}
+                    variant={club.is_joined ? "secondary" : "default"}
+                    className={club.is_joined ? "flex-1" : "flex-1"}
+                  >
+                    {club.is_joined ? "Joined" : "Join Club"}
+                  </Button>
+                )}
               </>
             )}
           </div>

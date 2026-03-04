@@ -77,6 +77,7 @@ interface Club {
   image_url: string | null
   is_joined: boolean
   is_claimed: boolean
+  is_sponsor: boolean
   president_name: string | null
   president_avatar: string | null
   president_email: string | null
@@ -190,6 +191,28 @@ export function ClubDetailPage({ clubId }: { clubId: string }) {
     } catch (error) {
       console.error("Error joining/leaving club:", error)
       alert("Failed to update membership. Please try again.")
+    }
+  }, [user?.id, club, clubId, loadClubDetails])
+
+  const handleLeaveSponsor = useCallback(async () => {
+    if (!user?.id || !club) return
+    if (!confirm(`Are you sure you want to leave your sponsorship of ${club.name}?`)) return
+
+    try {
+      const response = await fetch(`/api/clubs/${clubId}/leave-sponsor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      })
+      if (response.ok) {
+        await loadClubDetails()
+      } else {
+        const data = await response.json()
+        alert(data.error || "Failed to leave sponsorship")
+      }
+    } catch (error) {
+      console.error("Error leaving sponsorship:", error)
+      alert("Failed to leave sponsorship. Please try again.")
     }
   }, [user?.id, club, clubId, loadClubDetails])
 
@@ -343,7 +366,7 @@ export function ClubDetailPage({ clubId }: { clubId: string }) {
                 <div className="space-y-3 sm:space-y-4">
                   {posts.map((post) => {
                     const isLeadership = club?.memberRole && ['president', 'vice_president', 'officer'].includes(club.memberRole)
-                    const canDelete = isLeadership
+                    const canDelete = isLeadership || club?.is_sponsor
                     
                     // Debug logging
                     console.log('Post delete check:', {
@@ -409,8 +432,8 @@ export function ClubDetailPage({ clubId }: { clubId: string }) {
             <CardContent className="pt-4 sm:pt-6 space-y-2 sm:space-y-3 px-3 sm:px-6 pb-3 sm:pb-6">
               {club.is_claimed ? (
                 <>
-                  {/* Create Post Button - for officers and presidents */}
-                  {user?.id && isLeader && (
+                  {/* Create Post Button - for leaders and sponsors */}
+                  {user?.id && (isLeader || club.is_sponsor) && (
                     <CreatePostDialog
                       clubId={club.id}
                       clubName={club.name}
@@ -419,7 +442,7 @@ export function ClubDetailPage({ clubId }: { clubId: string }) {
                     />
                   )}
 
-                  {user?.id && club.memberRole !== "president" && (
+                  {user?.id && club.memberRole !== "president" && !club.is_sponsor && (
                     <Button
                       onClick={handleJoinLeave}
                       variant={club.is_joined ? "destructive" : "default"}
@@ -432,6 +455,16 @@ export function ClubDetailPage({ clubId }: { clubId: string }) {
                     <div className="text-xs text-muted-foreground text-center py-2">
                       Use "Leave Presidency" below to leave this club
                     </div>
+                  )}
+                  {/* Leave Sponsorship button for sponsors */}
+                  {user?.id && club.is_sponsor && (
+                    <Button
+                      variant="outline"
+                      className="w-full h-9 sm:h-10 text-sm"
+                      onClick={handleLeaveSponsor}
+                    >
+                      Leave Sponsorship
+                    </Button>
                   )}
                   {isLeader && (
                     <>
@@ -451,24 +484,25 @@ export function ClubDetailPage({ clubId }: { clubId: string }) {
                         currentTags={club.tags || []}
                         onUpdateSuccess={loadClubDetails}
                       />
-                      {club.memberRole === "president" && (
-                        <>
-                          <ManageLeadershipDialog
-                            clubId={club.id}
-                            clubName={club.name}
-                            currentUserId={user?.id || ""}
-                            isPresident={true}
-                          />
-                          <TransferPresidencyDialog
-                            clubId={club.id}
-                            clubName={club.name}
-                            members={members}
-                            currentUserId={user?.id || ""}
-                            onSuccess={() => router.push("/")}
-                          />
-                        </>
-                      )}
                     </>
+                  )}
+                  {(club.memberRole === "president" || club.is_sponsor) && (
+                    <ManageLeadershipDialog
+                      clubId={club.id}
+                      clubName={club.name}
+                      currentUserId={user?.id || ""}
+                      isPresident={club.memberRole === "president"}
+                      isSponsor={club.is_sponsor}
+                    />
+                  )}
+                  {club.memberRole === "president" && (
+                    <TransferPresidencyDialog
+                      clubId={club.id}
+                      clubName={club.name}
+                      members={members}
+                      currentUserId={user?.id || ""}
+                      onSuccess={() => router.push("/")}
+                    />
                   )}
                 </>
               ) : (

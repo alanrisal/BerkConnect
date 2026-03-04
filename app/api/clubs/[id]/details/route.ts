@@ -142,16 +142,18 @@ export async function GET(
       postsResult = { rows: [] }
     }
 
-    // Check if current user is a member and their role
+    // Check if current user is a member and their role, and if they are a sponsor
     let userMembership = null
+    let userIsSponsor = false
     if (userId) {
-      const membershipQuery = `
-        SELECT role FROM club_members WHERE club_id = $1 AND user_id = $2
-      `
-      const membershipResult = await pool.query(membershipQuery, [clubId, userId])
+      const [membershipResult, sponsorResult] = await Promise.all([
+        pool.query(`SELECT role FROM club_members WHERE club_id = $1 AND user_id = $2`, [clubId, userId]),
+        pool.query(`SELECT id FROM club_sponsors WHERE club_id = $1 AND user_id = $2 AND status = 'active'`, [clubId, userId]),
+      ])
       if (membershipResult.rows.length > 0) {
         userMembership = membershipResult.rows[0].role
       }
+      userIsSponsor = sponsorResult.rows.length > 0
     }
 
     return NextResponse.json({
@@ -162,6 +164,7 @@ export async function GET(
           member_count: membersResult.rows.length,
           is_joined: userMembership !== null,
           memberRole: userMembership,
+          is_sponsor: userIsSponsor,
         },
         members: membersResult.rows,
         posts: postsResult.rows,

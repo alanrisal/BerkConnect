@@ -27,10 +27,15 @@ export async function POST(
       )
     }
 
-    // Verify the adder is the president of the club
-    const presidentQuery = 'SELECT president_id FROM clubs WHERE id = $1'
-    const presidentResult = await pool.query(presidentQuery, [clubId])
-    
+    // Verify the adder is the president or a sponsor of the club
+    const [presidentResult, sponsorResult] = await Promise.all([
+      pool.query('SELECT president_id FROM clubs WHERE id = $1', [clubId]),
+      pool.query(
+        `SELECT id FROM club_sponsors WHERE club_id = $1 AND user_id = $2 AND status = 'active'`,
+        [clubId, addedBy]
+      ),
+    ])
+
     if (presidentResult.rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Club not found' },
@@ -38,9 +43,12 @@ export async function POST(
       )
     }
 
-    if (presidentResult.rows[0].president_id !== addedBy) {
+    const isPresident = presidentResult.rows[0].president_id === addedBy
+    const isSponsor = sponsorResult.rows.length > 0
+
+    if (!isPresident && !isSponsor) {
       return NextResponse.json(
-        { success: false, error: 'Only the club president can add leaders' },
+        { success: false, error: 'Only the club president or sponsors can add leaders' },
         { status: 403 }
       )
     }

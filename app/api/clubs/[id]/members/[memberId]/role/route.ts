@@ -27,16 +27,21 @@ export async function PUT(
       )
     }
 
-    // Verify the updater is a president of the club (supports co-presidency)
-    const presidentQuery = `
-      SELECT role FROM club_members 
-      WHERE club_id = $1 AND user_id = $2 AND role = 'president'
-    `
-    const presidentResult = await pool.query(presidentQuery, [clubId, updatedBy])
-    
-    if (presidentResult.rows.length === 0) {
+    // Verify the updater is a president or sponsor of the club
+    const [presidentResult, sponsorResult] = await Promise.all([
+      pool.query(
+        `SELECT role FROM club_members WHERE club_id = $1 AND user_id = $2 AND role = 'president'`,
+        [clubId, updatedBy]
+      ),
+      pool.query(
+        `SELECT id FROM club_sponsors WHERE club_id = $1 AND user_id = $2 AND status = 'active'`,
+        [clubId, updatedBy]
+      ),
+    ])
+
+    if (presidentResult.rows.length === 0 && sponsorResult.rows.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Only club presidents can update member roles' },
+        { success: false, error: 'Only club presidents or sponsors can update member roles' },
         { status: 403 }
       )
     }

@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { GraduationCap, Users, BookOpen, MessageCircle, RefreshCw, Zap, Heart } from "lucide-react"
-import { MascotBanner } from "./mascot-banner"
 import { useAuth } from "@/contexts/auth-context"
 
 export function LoginScreen() {
@@ -48,11 +47,6 @@ export function LoginScreen() {
         {/* Left side - Branding and features */}
         <div className="space-y-6 sm:space-y-8">
           <div className="text-center lg:text-left">
-            {/* Mascot appears above the title */}
-            <div className="block">
-              <MascotBanner />
-            </div>
-
             {/* Title with neo-brutalist styling */}
             <div className="flex items-center justify-center lg:justify-start gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div className="p-3 sm:p-4 bg-primary border-2 border-foreground shadow-brutal">

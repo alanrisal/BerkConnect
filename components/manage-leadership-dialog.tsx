@@ -32,6 +32,7 @@ interface ManageLeadershipDialogProps {
   clubName: string
   currentUserId: string
   isPresident: boolean
+  isSponsor?: boolean
 }
 
 const LEADERSHIP_ROLES = [
@@ -40,7 +41,7 @@ const LEADERSHIP_ROLES = [
   { value: 'officer', label: 'Officer', icon: Users },
 ]
 
-export function ManageLeadershipDialog({ clubId, clubName, currentUserId, isPresident }: ManageLeadershipDialogProps) {
+export function ManageLeadershipDialog({ clubId, clubName, currentUserId, isPresident, isSponsor }: ManageLeadershipDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [members, setMembers] = useState<ClubMember[]>([])
   const [leaders, setLeaders] = useState<ClubMember[]>([])
@@ -181,7 +182,7 @@ export function ManageLeadershipDialog({ clubId, clubName, currentUserId, isPres
     }
   }
 
-  if (!isPresident) {
+  if (!isPresident && !isSponsor) {
     return null
   }
 
