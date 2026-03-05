@@ -14,7 +14,7 @@ NEXT_PUBLIC_AZURE_CLIENT_ID=your-client-id-here
 # 1. Go to https://portal.azure.com
 # 2. Navigate to "Azure Active Directory" > "App registrations"
 # 3. Click "New registration"
-# 4. Name: "SchoolConnect"
+# 4. Name: "BerkConnect"
 # 5. Supported account types: "Accounts in this organizational directory only"
 # 6. Redirect URI: Web > http://localhost:3000
 # 7. After creation, copy the "Application (client) ID"

@@ -1,4 +1,4 @@
-// Service Worker for SchoolConnect Push Notifications
+// Service Worker for BerkConnect Push Notifications
 
 const CACHE_NAME = 'schoolconnect-v1'
 
@@ -29,8 +29,8 @@ self.addEventListener('push', (event) => {
 
   // Default notification data - always have a fallback
   let data = {
-    title: 'SchoolConnect',
-    body: 'New notification from SchoolConnect',
+    title: 'BerkConnect',
+    body: 'New notification from BerkConnect',
     url: '/',
   }
 

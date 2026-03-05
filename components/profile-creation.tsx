@@ -68,7 +68,7 @@ export function ProfileCreation() {
         <CardHeader className="text-center px-4 sm:px-6 py-4 sm:py-6">
           <CardTitle className="text-2xl sm:text-3xl">Create Your Profile</CardTitle>
           <CardDescription className="text-sm sm:text-base">
-            Complete your profile to start using SchoolConnect
+            Complete your profile to start using BerkConnect
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
