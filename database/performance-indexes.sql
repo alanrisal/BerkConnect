@@ -1,4 +1,4 @@
--- Performance Optimization Indexes for SchoolConnect
+-- Performance Optimization Indexes for BerkConnect
 -- Run this to improve query performance
 
 -- ============================================

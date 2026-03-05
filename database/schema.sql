@@ -1,3 +1,3 @@
--- SchoolConnect Database Schema
+-- BerkConnect Database Schema
 -- Use clubs-schema.sql for the main application schema
 -- This file is kept for reference only

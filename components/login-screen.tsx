@@ -149,7 +149,7 @@ export function LoginScreen() {
       <div className="fixed bottom-4 left-4 hidden lg:block">
         <div className="flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground border-2 border-foreground shadow-brutal text-xs font-bold uppercase">
           <Heart className="h-4 w-4" />
-            Made with ❤️ aris and BpsCSC
+            Made with ❤️ by BPS Computer Science Club
         </div>
       </div>
     </div>

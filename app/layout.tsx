@@ -9,7 +9,7 @@ import { DevModeBanner } from '@/components/dev-mode-banner'
 import { ServiceWorkerRegister } from '@/components/service-worker-register'
 
 export const metadata: Metadata = {
-  title: 'SchoolConnect - Berkeley Prep',
+  title: 'BerkConnect - Berkeley Prep',
   description:
     'Connect with your school community. Share updates, join clubs, and stay informed about campus life.',
   generator: 'v0.app',
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'SchoolConnect',
+    title: 'BerkConnect',
   },
   icons: {
     icon: '/icon-192.png',

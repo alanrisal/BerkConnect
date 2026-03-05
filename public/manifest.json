@@ -1,6 +1,6 @@
 {
-  "name": "SchoolConnect",
-  "short_name": "Connect",
+  "name": "BerkConnect",
+  "short_name": "BerkConnect",
   "description": "Connect with your school community. Share updates, join clubs, and stay informed about campus life.",
   "start_url": "/",
   "scope": "/",

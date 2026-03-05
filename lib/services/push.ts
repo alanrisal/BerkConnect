@@ -23,7 +23,7 @@ function ensureVapidInitialized() {
 
   if (vapidPublicKey && vapidPrivateKey) {
     webpush.setVapidDetails(
-      'mailto:notifications@schoolconnect.app',
+      'mailto:notifications@BerkConnect.app',
       vapidPublicKey,
       vapidPrivateKey
     )
